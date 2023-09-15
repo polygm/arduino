@@ -178,33 +178,14 @@ void loop() {
     bluetooth_input = bluetooth.readStringUntil('\n'); //엔터까지 입력받기
     Serial.print("+< ");
     Serial.println(bluetooth_input);
+    command_parser(bluetooth_input);
   }
   
   //char cmd; // 지역변수, loop 함수에서만 사용 가능
   if(Serial.available()>0){
-    input = Serial.readStringUntil('\n'); //엔터까지 입력받기
-    Serial.println("> INPUT : " + input);
-
-    if(input.charAt(0) == '?') {
-      help();
-      return;
-    } 
-
-    //문자의 첫번째 위치부터 다음 토큰까지 읽어낸다
-    int space_idx = input.indexOf("="); 
-
-    //첫번째 인자의 경우, 공백을 만나지못하면 인자 딱 하나만 입력한 경우이므로 처음부터 끝까지 읽고,
-    //공백을 만나면 그 공백 전까지 짤라서 읽어내면 됨. (인자가 2개 이상인 경우)
-    String cmd = space_idx == -1 ? input.substring(0, input.length()) : input.substring(0, space_idx);
-
-    if(space_idx == -1) {
-      cmd = input.substring(0, input.length());
-      command(cmd, ""); // 명령어 분석
-    } else {
-      command(cmd, input.substring(space_idx+1, input.length()) );
-    }
-
-
+    String serial_input = Serial.readStringUntil('\n'); //엔터까지 입력받기
+    Serial.println("> INPUT : " + serial_input);
+    command_parser(serial_input);  
   }
   
 
@@ -220,6 +201,36 @@ void loop() {
   timedelay++; delay(1);
   
 } /* --- loop end ---*/
+
+void wire_request(int id, int len) {
+    Wire.requestFrom(id, len);    // request 6 bytes from slave device #8
+
+  while (Wire.available()) { // slave may send less than requested
+    char c = Wire.read(); // receive a byte as character
+    Serial.print(c);         // print the character
+  }
+}
+
+void command_parser(String input) {
+  if(input.charAt(0) == '?') {
+    help();
+    return;
+  } 
+
+  //문자의 첫번째 위치부터 다음 토큰까지 읽어낸다
+  int space_idx = input.indexOf("="); 
+
+  //첫번째 인자의 경우, 공백을 만나지못하면 인자 딱 하나만 입력한 경우이므로 처음부터 끝까지 읽고,
+  //공백을 만나면 그 공백 전까지 짤라서 읽어내면 됨. (인자가 2개 이상인 경우)
+  String cmd = space_idx == -1 ? input.substring(0, input.length()) : input.substring(0, space_idx);
+
+  if(space_idx == -1) {
+    cmd = input.substring(0, input.length());
+    command(cmd, ""); // 명령어 분석
+  } else {
+    command(cmd, input.substring(space_idx+1, input.length()) );
+  }
+}
 
 void help() {
   Serial.println("----- ----- ----- ----- -----");
@@ -269,6 +280,36 @@ int command(String cmd, String str) {
     Serial.print("module = ");
     Serial.print(module_idx);
 
+    //String body = input.substring(space_idx+1, input.length());
+    //Serial.println(body);
+
+    Wire.beginTransmission(module_idx);
+    Serial.print("Wrie command = ");
+    for(int n=(space_idx+1); n<cmd.length(); n++) {
+      Wire.write(cmd.charAt(n));
+      Serial.print(cmd.charAt(n));
+
+    } 
+
+    if(str.length()>0) {
+      Wire.write('=');
+      Serial.println("");
+      Serial.print("Wrie value = ");
+      for(int n=0; n<str.length(); n++) {
+        Wire.write(str.charAt(n));
+        Serial.print(str.charAt(n));
+      }
+
+      Serial.println("");
+    }
+    /*
+    for(int n=0; n<body.length(); n++) {
+      Wire.write(body.charAt(n));
+      Serial.print(body.charAt(n));
+    } 
+    */
+
+    /*
     cmd = cmd.substring(space_idx+1, cmd.length());
     Serial.print(", command = ");
     Serial.println(cmd);
@@ -276,13 +317,12 @@ int command(String cmd, String str) {
     Wire.write('=');
 
     Wire.beginTransmission(module_idx);
-    for(int n=0; n<str.length(); n++) {
-      Wire.write(str.charAt(n));
-    }
+    
 
-    for(int n=0; n<cmd.length(); n++) {
-      Wire.write(cmd.charAt(n));
-    }  
+    
+    */
+
+     
     Wire.endTransmission();
     
     return 0; //함수 중단
