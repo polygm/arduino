@@ -211,6 +211,7 @@ void wire_request(int id, int len) {
   }
 }
 
+// 명령어 분석
 void command_parser(String input) {
   if(input.charAt(0) == '?') {
     help();
