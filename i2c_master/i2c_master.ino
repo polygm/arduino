@@ -8,18 +8,28 @@
 #include <LiquidCrystal_I2C.h> // 라이브러리 설치
 #include <SoftwareSerial.h>
 
+#define DEBUG 1 
 
+#define BEEP_PIN 11 // 능동부저
+#define BEEP 11 // 수동부저
 
-#define BEEP_PIN 12 // 부저
 
 #define BUTTON1 8 
 #define BUTTON2 9
 #define BUTTON3 10
 
+
+
+
 #define BT_RXD 7 // 블루투스모듈 TX연결
 #define BT_TXD 6 // 블루투스모듈 RX연결
 
-int i2c_module = 0;
+// 0 : ready
+// 1 : setup
+int status = 0;
+int timedelay = 0;
+
+
 
 int address = 0;
 
@@ -59,51 +69,137 @@ void lcd_init() {
 }
 
 String ProductName;
-int product_name_addr = 0;
+int addr_title_enable = 128;
+int product_name_addr = 256;
 
 void product_name_read() {
   char c;
-  for(int a=product_name_addr, i=0; a<16; a++,i++) {
-    c = EEPROM.read(a);
-    if( c >= 20 && c <= 126 ) {
-      ProductName += c; 
+  if(EEPROM.read(addr_title_enable) == 1) {
+    
+    for(int a=product_name_addr, i=0; a<16; a++,i++) {
+      c = EEPROM.read(a);
+      if( c > 20 && c <= 126 ) {
+        ProductName += c; 
+      } else {
+        ProductName += '_'; 
+      }
     }
+  } else {
+    ProductName = "I2C-Master";
   }
+}
 
-  //Serial.println(ProductName); 
+void start_beep() {
+  tone(BEEP,1046); // 도
+  delay(200);
+  noTone(BEEP);
+
+  tone(BEEP,1046); // 도
+  delay(200);
+  noTone(BEEP);
+}
+
+void ready_beep() {
+  /*
+  tone(BEEP,523); // 도
+  delay(500);
+  
+  
+  tone(BEEP,587); // 레
+  delay(500);
+  */
+  
+  tone(BEEP,660); // 미
+  delay(100);
+  
+  
+  /*
+  tone(BEEP,698); // 파
+  delay(500);
+  */
+  
+  tone(BEEP,784); // 솔
+  delay(300);
+  
+
+  /*
+  tone(BEEP,880); // 라
+  delay(500);
+  */
+  
+  tone(BEEP,988); // 시
+  delay(500);
+  
+  /*
+  tone(BEEP,1046); // 도
+  delay(500);
+  */
+
+  noTone(BEEP);
+ 
 }
 
 void setup() {
   // 초기화0. EEPROM
   // - Arduino Uno:         1 kB EEPROM storage.
-  //EEPROM.write(address, 100);
-  // 
-  
-
-
-
-  
-
 
   // 초기화1 : 내부 LED, Beep
   pinMode(LED_BUILTIN, OUTPUT);
   time_blank_delay[12] = 500;
 
   // 초기화2. 전원 입력시 삑 (1번)
+  /*
   pinMode(BEEP_PIN, OUTPUT);
-  beep(200); // 삐빅
+  beep(50); // 삐빅
+  */
 
-  // 초기화3. LCD 초기화
-  lcd_init();
+  pinMode(BEEP,OUTPUT); // 수동부저 출력 11핀
+  start_beep();
+
   
 
   // 초기화4. 시리얼 초기화
   Serial.begin(2000000);
+  beep(100); // 삐빅
 
   product_name_read();
-  if(ProductName == "") {
-    ProductName = "I2C-Master";
+  Serial.print(ProductName); 
+
+  // 초기화3. LCD 초기화
+  lcd_init();
+  lcd.setCursor(0,0);
+  lcd.print(ProductName);
+
+
+  // 초기화7. 버튼 
+  pinMode(BUTTON1, INPUT);
+  pinMode(BUTTON2, INPUT);
+  pinMode(BUTTON3, INPUT);
+
+
+
+  /*
+  if(digitalRead(BUTTON1) == 0) {
+    beep(200); // 삐빅
+    status = 1; // setup 상태
+
+    lcd.setCursor(0,1);
+    lcd.print("Setup mode");
+    //lcd.blink();
+
+    Serial.println(" = Setup Mode!");
+  } else {
+    
+    lcd.setCursor(0,1);
+    lcd.print("ready!");
+    Serial.println(" = Ready!");
   }
+  */
+
+  lcd.setCursor(0,1);
+  lcd.print("ready!");
+  Serial.println(" = Ready!");
+
   
   // 초기화5. I2C
   Wire.begin(); // i2c 통신
@@ -111,48 +207,12 @@ void setup() {
   // 초기화6. 블루투스
   bluetooth.begin(9600);
 
-
-  // 초기화7. 버튼 
-  pinMode(BUTTON1, INPUT);
-  //attachPCINT( digitalPinToPCINT(BUTTON1), button1_press, FALLING);
-  pinMode(BUTTON2, INPUT);
-  //attachPCINT( digitalPinToPCINT(BUTTON2), button2_press, FALLING);
-  pinMode(BUTTON3, INPUT);
-  //attachPCINT( digitalPinToPCINT(BUTTON3), button3_press, FALLING);
-
-
-
-  if(digitalRead(BUTTON1) == 0) {
-    Serial.println("Setup Mode!");
-    beep(200); // 삐빅
-
-    lcd.setCursor(0,0);
-    lcd.print("Setup mode");
-
-  } else {
-    Serial.println("Master Ready!");
-
-    lcd.setCursor(0,0);
-    lcd.print(ProductName);
-    lcd.setCursor(0,1);
-    lcd.print("ready!");
-  }
-
+  ready_beep();
 
 }
 
 
-void button1_press() {
-  Serial.println("button1 press");
-}
 
-void button2_press() {
-  Serial.println("button2 press");
-}
-
-void button3_press() {
-  Serial.println("button3 press");
-}
 
 // 모듈로 값을 전달합니다.
 void commandModule(int module, int value)
@@ -162,18 +222,99 @@ void commandModule(int module, int value)
   Wire.endTransmission();
 }
 
+/*
+  버튼 검출 로직
+*/
+int button1_press = 0;
+int button1_time_count = 0;
+int button1_press_check() {
+  int count;
+  if(digitalRead(BUTTON1) == 0) {
+    if(button1_press == 0) {
+      button1_press = timedelay;
+    }
+    button1_time_count++;
+  }
+  
+  if(digitalRead(BUTTON1) == 1) {
+    if(button1_press > 0) {        
+      button1_press = 0;
+      Serial.print("button1 press = ");      
+      Serial.println( button1_time_count );
+      count = button1_time_count;
+      button1_time_count=0;
+      return count;
+    }
+  }
 
+  return 0;
+}
+
+int button2_press = 0;
+int button2_time_count = 0;
+int button2_press_check() {
+  int count;
+  if(digitalRead(BUTTON2) == 0) {
+    if(button2_press == 0) {
+      button2_press = timedelay;
+    }
+    button2_time_count++;
+  }
+  
+  if(digitalRead(BUTTON2) == 1) {
+    if(button2_press > 0) {        
+      button2_press = 0;
+      Serial.print("button2 press = ");      
+      Serial.println( button2_time_count );
+      count = button2_time_count;
+      button2_time_count=0;
+      return count;
+    }
+  }
+
+  return 0;
+}
+
+int button3_press = 0;
+int button3_time_count = 0;
+int button3_press_check() {
+  int count;
+  if(digitalRead(BUTTON3) == 0) {
+    if(button3_press == 0) {
+      button3_press = timedelay;
+    }
+    button3_time_count++;
+  }
+  
+  if(digitalRead(BUTTON3) == 1) {
+    if(button3_press > 0) {        
+      button3_press = 0;
+      Serial.print("button3 press = ");      
+      Serial.println( button3_time_count );
+      count = button3_time_count;
+      button3_time_count=0;
+      return count;
+    }
+  }
+
+  return 0;
+}
 
 String input;
 String bluetooth_input;
-int timedelay = 0;
+
 int time_led_toggle = 0;
 int time_beep_toggle = 0;
 
-
+int mode_count = 0;
 
 void loop() {
-  
+  // 설정모드
+  if(status == 1) {
+
+  }
+
+  // 블루투스 통신
   if(bluetooth.available()){
     bluetooth_input = bluetooth.readStringUntil('\n'); //엔터까지 입력받기
     Serial.print("+< ");
@@ -181,10 +322,10 @@ void loop() {
     command_parser(bluetooth_input);
   }
   
-  //char cmd; // 지역변수, loop 함수에서만 사용 가능
+  // 시리얼 통신
   if(Serial.available()>0){
     String serial_input = Serial.readStringUntil('\n'); //엔터까지 입력받기
-    Serial.println("> INPUT : " + serial_input);
+    Serial.println("> " + serial_input);
     command_parser(serial_input);  
   }
   
@@ -202,6 +343,35 @@ void loop() {
   
 } /* --- loop end ---*/
 
+
+
+void time_led_blank(int time, int pin) {
+  if(timedelay % time == 0) {
+    if(time_led_toggle == 0) {
+      time_led_toggle = 1;
+    } else {
+      time_led_toggle = 0;
+    }
+    digitalWrite(pin, time_led_toggle);    
+  }
+}
+
+void time_beep_blank(int time, int pin) {
+  if(timedelay % time == 0) {
+    if(time_beep_toggle == 0) {
+      time_beep_toggle = 1;
+    } else {
+      time_beep_toggle = 0;
+    }
+    digitalWrite(pin, time_beep_toggle);    
+  }
+}
+
+
+/*
+  I2C 통신
+*/
+
 void wire_request(int id, int len) {
     Wire.requestFrom(id, len);    // request 6 bytes from slave device #8
 
@@ -211,6 +381,9 @@ void wire_request(int id, int len) {
   }
 }
 
+/*
+  명령어 처리
+*/
 // 명령어 분석
 void command_parser(String input) {
   if(input.charAt(0) == '?') {
@@ -242,30 +415,6 @@ void help() {
   Serial.println("----- ----- ----- ----- -----");
 }
 
-void time_led_blank(int time, int pin) {
-  if(timedelay % time == 0) {
-    if(time_led_toggle == 0) {
-      time_led_toggle = 1;
-    } else {
-      time_led_toggle = 0;
-    }
-    digitalWrite(pin, time_led_toggle);    
-  }
-}
-
-void time_beep_blank(int time, int pin) {
-  if(timedelay % time == 0) {
-    if(time_beep_toggle == 0) {
-      time_beep_toggle = 1;
-    } else {
-      time_beep_toggle = 0;
-    }
-    digitalWrite(pin, time_beep_toggle);    
-  }
-}
-
-
-
 
 int command(String cmd, String str) {
   int module_idx = 0;
@@ -277,59 +426,44 @@ int command(String cmd, String str) {
   //문자의 첫번째 위치부터 다음 토큰까지 읽어낸다
   int space_idx = cmd.indexOf(":");
   if(space_idx!= -1) {
-    module_idx = cmd.substring(0, space_idx).toInt();;
-    Serial.print("module = ");
+    // 모듈 번호 구분
+    module_idx = cmd.substring(0, space_idx).toInt();
+    Serial.print("Module = ");
     Serial.print(module_idx);
 
-    //String body = input.substring(space_idx+1, input.length());
-    //Serial.println(body);
-
+    // 지정한 I2C 모듈 선택
     Wire.beginTransmission(module_idx);
-    Serial.print("Wrie command = ");
+
+    // 명령어를 전송합니다.
+    Serial.print(", Command = ");
     for(int n=(space_idx+1); n<cmd.length(); n++) {
       Wire.write(cmd.charAt(n));
       Serial.print(cmd.charAt(n));
-
     } 
 
+    // 2차 매개변수가 있는 경우 데이터 추가 전송
     if(str.length()>0) {
+      // 구분기호 전송
       Wire.write('=');
-      Serial.println("");
-      Serial.print("Wrie value = ");
+      //Serial.println("");
+
+      // 파라미터 값을 추가 전송합니다.
+      //Serial.print("Wrie value = ");
       for(int n=0; n<str.length(); n++) {
         Wire.write(str.charAt(n));
         Serial.print(str.charAt(n));
       }
 
-      Serial.println("");
+      Serial.println("...");
     }
-    /*
-    for(int n=0; n<body.length(); n++) {
-      Wire.write(body.charAt(n));
-      Serial.print(body.charAt(n));
-    } 
-    */
-
-    /*
-    cmd = cmd.substring(space_idx+1, cmd.length());
-    Serial.print(", command = ");
-    Serial.println(cmd);
-
-    Wire.write('=');
-
-    Wire.beginTransmission(module_idx);
-    
-
-    
-    */
-
      
     Wire.endTransmission();
     
     return 0; //함수 중단
   } 
   
-  // +시작하는 명령 : 블루투스 코멘드
+  // 블루투스 코멘드
+  // +시작하는 명령 : 
   if(cmd.charAt(0) == '+') {
     // +를 제외한 명령
     // 블루투스 명령 전송
@@ -339,11 +473,6 @@ int command(String cmd, String str) {
   }
   
   // local 커멘드
-
-  if (cmd == "i2c") {
-    parser_i2c(str);
-  }
-
   if (cmd == "i2c-scan") {
     parser_i2c_scan(str);
   }
@@ -382,37 +511,33 @@ int command(String cmd, String str) {
     lcd.print(str);
   }
 
-
-
 }
 
-
+// LCD 출력
+// 첫번째 줄과 두번째 줄은 `/`로 구분함
 void parser_lcd(String str) {
-  Serial.println("---");
-  Serial.println(str);
-  int space_idx = str.indexOf("/"); //문자의 첫번째 위치부터 다음 공백까지 읽어낸다
-
   lcd.clear();
+
+  // 첫번째줄 읽기
+  int space_idx = str.indexOf("/"); //문자의 첫번째 위치부터 다음 공백까지 읽어낸다
 
   //첫번째 인자의 경우, 공백을 만나지못하면 인자 딱 하나만 입력한 경우이므로 처음부터 끝까지 읽고,
   //공백을 만나면 그 공백 전까지 짤라서 읽어내면 됨. (인자가 2개 이상인 경우)
   String arg0;
   if(space_idx == -1) {
-    arg0 = str.substring(0, str.length());
+    arg0 = str.substring(0, str.length()); // '/' 를 검출하지 못한경우
   } else {
     arg0 = str.substring(0, space_idx);
   }
-  //arg0 = space_idx == -1 ? input.substring(0, str.length()) : str.substring(0, space_idx);
 
+  // 첫번째줄 출력
   lcd.setCursor(0,0);
-  Serial.println(arg0);
   lcd.print(arg0);
+  // Serial.println(arg0);
 
-  Serial.println(space_idx);
   // 다음 공백 위치 찾는 코드
-  //int backup_space = space_idx;                  //공백 위치를 백업해둠
-  //space_idx = str.indexOf(" ", space_idx + 1); //다음 공백 위치를 찾는다.
-  //String arg1 = space_idx == -1 ? str.substring(backup_space + 1, str.length()) : str.substring(backup_space + 1, space_idx);
+  // Serial.println(space_idx);
+  // '/'로 시작해서, 첫번째줄을 생략하는 경우
   String arg1 = "";
   if(space_idx == -1) {
     arg1="";
@@ -420,18 +545,13 @@ void parser_lcd(String str) {
     arg1 = str.substring(space_idx + 1, str.length());
   }
   
+  // 2번째줄 출력
   lcd.setCursor(0,1);
   Serial.println(arg1);
   lcd.print(arg1);
 }
 
-void parser_i2c(String str) {
-  int num = str.toInt();
-  i2c_module = num;
-  Serial.print("select i2c module = ");
-  Serial.println(num);
-}
-
+// I2c 스케닝
 void parser_i2c_scan(String str) {
   byte Err, adr;
   int N_Device;
@@ -460,11 +580,13 @@ void parser_i2c_scan(String str) {
   }
 }
 
+// 비프소리 출력
 void parser_beep(String str) {
   int time = str.toInt();
   beep(time);
 }
 
+// 내부 LED 깜빡임 속도 변경
 void parser_led(String str) {
   time_blank_delay[12] = str.toInt();
 }

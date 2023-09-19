@@ -6,11 +6,11 @@
 #include <EEPROM.h>
 #include <Servo.h>
 
-//#define BEEP_PIN 12 // 부저
-int BEEP_PIN;
+//#define BEEP_PIN 12 // 능동부저
+#define BEEP_PIN 11 // 수동부저
 
 //#define BUTTON1 8 // 스위치1
-int BUTTON1;
+#define BUTTON1 12
 //#define BUTTON2 9 // 스위치2
 int BUTTON2;
 int BUTTON3;
@@ -19,6 +19,9 @@ int BUTTON4;
 
 // 서보모터(PWM)
 Servo servo_motor1, servo_motor2, servo_motor3, servo_motor4, servo_motor5, servo_motor6;
+int server1_angle=0;
+int server2_angle=0;
+int server3_angle=0;
 int addr_servo[6]={6,7,8,9,10,11};
 int servo_enable[6]={0,0,0,0,0,0};
 
@@ -36,6 +39,57 @@ void builtin_led_blank(int time=1000) {
   delay(time);                      // wait for a second
   digitalWrite(LED_BUILTIN, LOW);   // turn the LED off by making the voltage LOW
   delay(time);                      // wait for a second
+}
+
+
+void start_beep() {
+  tone(BEEP_PIN,1046); // 도
+  delay(200);
+  noTone(BEEP_PIN);
+
+  tone(BEEP_PIN,1046); // 도
+  delay(200);
+  noTone(BEEP_PIN);
+}
+
+void ready_beep() {
+  /*
+  tone(BEEP,523); // 도
+  delay(500);
+  
+  
+  tone(BEEP,587); // 레
+  delay(500);
+  */
+  
+  tone(BEEP_PIN,660); // 미
+  delay(100);
+  
+  
+  /*
+  tone(BEEP,698); // 파
+  delay(500);
+  */
+  
+  tone(BEEP_PIN,784); // 솔
+  delay(300);
+  
+
+  /*
+  tone(BEEP,880); // 라
+  delay(500);
+  */
+  
+  tone(BEEP_PIN,988); // 시
+  delay(500);
+  
+  /*
+  tone(BEEP,1046); // 도
+  delay(500);
+  */
+
+  noTone(BEEP_PIN);
+ 
 }
 
 void beep(int time)
@@ -60,24 +114,14 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   time_blank_delay[12] = 500;
 
-  // 초기화2. 전원 입력시 삑 (1번)
-  BEEP_PIN = EEPROM.read(1);
-  Serial.print("Beep_pin="); 
-  if(BEEP_PIN<0 || BEEP_PIN>19) {
-    BEEP_PIN = 12; // 초기화
-  }
-  Serial.println(BEEP_PIN);
-  pinMode(BEEP_PIN, OUTPUT);
-  beep(200); // 삐빅
+  pinMode(BEEP_PIN,OUTPUT); // 수동부저 출력 11핀
+  start_beep();
 
 
   // 버튼 초기화
-  BUTTON1 = EEPROM.read(2);
-  if(BUTTON1<0 || BUTTON1>19) {
-    BUTTON1 = 8; // 초기화
-  }
   pinMode(BUTTON1, INPUT);
   btn1 = digitalRead(BUTTON1);
+
 
   BUTTON2 = EEPROM.read(3);
   if(BUTTON2<0 || BUTTON2>19) {
@@ -120,6 +164,22 @@ void setup() {
     Wire.onRequest(requestEvent); // register event
   }
 
+  Serial.println("servo1 init");
+  servo_motor1.attach(3);
+  servo_motor1.write(0);
+  delay(20);
+
+  Serial.println("servo2 init");
+  servo_motor2.attach(5);
+  servo_motor2.write(0);
+  delay(20);
+
+  Serial.println("servo3 init");
+  servo_motor3.attach(6);
+  servo_motor3.write(0);
+  delay(20);
+
+  /*
   // 서보모터
   if(status == 1) {
     //초기화
@@ -132,6 +192,7 @@ void setup() {
     }
 
     if(servo_enable[0]) {
+      Serial.println("servo1 init");
       servo_motor1.attach(3);
       servo_motor1.write(0);
       delay(20);
@@ -149,6 +210,7 @@ void setup() {
       delay(20);
     } 
   }
+  */
 
   Serial.println("Slave Ready");
   Serial.print("Slave_Num = "); Serial.println(slave_num);
@@ -189,10 +251,8 @@ void loop() {
   for(int position=180; position>=0;position-=2) {
     servo_motor1.write(position);
     delay(20);
-  }
-  */
-
-  
+  }*/
+ 
 
   if(wire_input.length()>0){
     Serial.print("M>");
@@ -221,6 +281,7 @@ void loop() {
   timedelay++; delay(1);
   
 } /* --- loop end ---*/
+
 
 // 명령어 분석
 void command_parser(String input) {
@@ -326,94 +387,66 @@ int command(String cmd, String str) {
   /* 서보모터 명령어 */
   if (cmd == "servo1") {
     int position = str.toInt();  
-    if(servo_enable[0] != 0) {
-      servo_motor1.write(position);
-
-      Serial.print("servo1 = ");
-      Serial.println(position);
+    
+    if(server1_angle <= position) {
+      for(int i=server1_angle; i<=position;i+=2) {
+        servo_motor1.write(i);
+        delay(5);
+      }
     } else {
-      Serial.println("servo1 is disable");
-    } 
+      for(int i=server1_angle; i>position;i-=2) {
+        servo_motor1.write(i);
+        delay(5);
+      }
+    }
+
+    server1_angle = position;
+    Serial.print("servo1 angle = ");
+    Serial.println(server1_angle);
   }
   
-  if (cmd == "servo1_enable") {
-    servo_enable[0] = 1;
-    EEPROM.write(addr_servo[0],1); // EEPROM에 기록
 
-    servo_motor2.attach(3);
-    servo_motor2.write(0);
-    delay(20);
-
-    Serial.println("servo1 enabled");
-  }
-  
-  if (cmd == "servo1_disable") {
-    servo_enable[0] = 0;
-    EEPROM.write(addr_servo[0],0); // EEPROM에 기록
-    servo_motor1.detach();
-    Serial.println("servo1 disabled");
-  }
 
   if (cmd == "servo2") {
     int position = str.toInt();  
-    if(servo_enable[1] != 0) {
-      servo_motor2.write(position);
-
-      Serial.print("servo2 = ");
-      Serial.println(position);
+    
+    if(server2_angle <= position) {
+      for(int i=server2_angle; i<=position;i+=2) {
+        servo_motor2.write(i);
+        delay(5);
+      }
     } else {
-      Serial.println("servo2 is disable");
-    } 
-  } 
-  
-  if (cmd == "servo2_enable") {
-    servo_enable[1] = 1;
-    EEPROM.write(addr_servo[1],1); // EEPROM에 기록
-    
-    servo_motor2.attach(5);
-    servo_motor2.write(0);
-    delay(20);
-    
-    Serial.println("servo2 enabled");
-  }
-  
-  if (cmd == "servo2_disable") {
-    servo_enable[1] = 0;
-    EEPROM.write(addr_servo[1],0); // EEPROM에 기록
-    servo_motor2.detach();
-    Serial.println("servo2 disabled");
-  }
+      for(int i=server2_angle; i>position;i-=2) {
+        servo_motor2.write(i);
+        delay(5);
+      }
+    }
 
-  
+    server2_angle = position;
+    Serial.print("servo2 angle = ");
+    Serial.println(server2_angle);
+  } 
+
   if (cmd == "servo3") {
     int position = str.toInt();  
-    if(servo_enable[2] != 0) {
-      servo_motor3.write(position);
-
-      Serial.print("servo3 = ");
-      Serial.println(position);
+    
+    if(server3_angle <= position) {
+      for(int i=server3_angle; i<=position;i+=2) {
+        servo_motor3.write(i);
+        delay(5);
+      }
     } else {
-      Serial.println("servo3 is disable");
-    } 
+      for(int i=server3_angle; i>position;i-=2) {
+        servo_motor3.write(i);
+        delay(5);
+      }
+    }
+
+    server3_angle = position;
+    Serial.print("servo3 angle = ");
+    Serial.println(server3_angle);
   } 
   
-  if (cmd == "servo3_enable") {
-    servo_enable[2] = 1;
-    EEPROM.write(addr_servo[2],1); // EEPROM에 기록
-    
-    servo_motor3.attach(6);
-    servo_motor3.write(0);
-    delay(20);
-    
-    Serial.println("servo3 enabled");
-  }
-  
-  if (cmd == "servo3_disable") {
-    servo_enable[2] = 0;
-    EEPROM.write(addr_servo[2],0); // EEPROM에 기록
-    servo_motor3.detach();
-    Serial.println("servo3 disabled");
-  }
 
 
   
