@@ -3,7 +3,6 @@
 #include "PinChangeInterrupt.h" // 라이브러리 추가 설치 필요
 
 
-
 #define BEEP_PIN 12 // 부저
 
 #define INTERRUPT0 2 // 인터럽트0
@@ -24,10 +23,20 @@
 // 모터 회전 Loop 문 구현을 간단하게 하기위해 핀 배열 선언
 int MotorPinArray[4] = { MOTOR_PIN1, MOTOR_PIN2, MOTOR_PIN3, MOTOR_PIN4 };
 
+/* 1상 여자 방식*/
+/*
 // CW 시계방향 데이터를 전송
 int MOTOR_CW[4] = { 0b1000, 0b0100, 0b0010,0b0001 };
 // CCW 반시계방향 데이터를 전송
 int MOTOR_CCW[4] = { 0b0001, 0b0010, 0b0100, 0b1000 };
+*/
+
+/* 2상 여자 방식*/
+// CW 시계방향 데이터 전송
+int MOTOR_CW[4] = { 0b1100, 0b0110, 0b0011, 0b1001 };
+int MOTOR_CCW[4] = { 0b1001, 0b0011, 0b0110, 0b1100 };
+
+int version=1;
 
 int motor_enable = 0;
 int motor_angle_max = 0;
@@ -99,6 +108,7 @@ void setup() {
   Serial.println("Module On");
 
 
+
   int itr0 = set_interrup0();
   int itr1 = set_interrup1();
   if( itr0 == 0 && itr1 == 0) {
@@ -107,20 +117,22 @@ void setup() {
 
   set_motor();
 
+  /*
   pinMode(BUTTON1,INPUT);
   attachPCINT( digitalPinToPCINT(BUTTON1), button1_press, FALLING);
   pinMode(BUTTON2,INPUT);
   attachPCINT( digitalPinToPCINT(BUTTON2), button2_press, FALLING);
-
+  */
 
   // i2c 설정
-  Wire.begin(1);
+  Wire.begin(6);
   Wire.onReceive(receivedEvent);
 
 
   Serial.println("Module Ready");
   Serial.println("m=move, d=max_distance, c=current_position");
   Serial.println("------------------------------------------");
+
 
 }
 
@@ -354,31 +366,8 @@ void builtin_led_blank(int time=1000) {
   delay(time);                      // wait for a second
 }
 
-/**
- * I2C를 통하여 데이터 값을 전달 받음
-*/
-int received_pos = 0;
-void receivedEvent(int howmany) {
-  int x;
-  x = Wire.read();
-  Serial.print(x);
-  
-  // 숫자값 계산 확인
-  // 48->0, 57->9
-  if( x >= 48 && x <= 57) {
-    received_pos = received_pos * 10 + (x - 48);
-    Serial.print("position = ");
-    Serial.println(received_pos);
-  }
 
-  // m(109) 값 전달 받은 경우 이동
-  if(x == 109) {
-    //move = 1;
-    motor_move(received_pos);
-    received_pos = 0;
-  }
-
-}
+String wire_input;
 
 void loop() {
   int btn1, btn2;
@@ -426,9 +415,10 @@ void loop() {
     }
   }
 
+
   
 
-
+  /*
   char cmd;
   if(Serial.available()){
     cmd = Serial.read();
@@ -450,24 +440,164 @@ void loop() {
       Serial.print("current position = ");
       Serial.println(motor_position);
     }
+  }
+  */
 
-/*
-    // isAlphaNumeric(thisChar)
-    // isDigit(cmd)
+  // I2C 통신 명령 입력부
+  if(wire_input.length()>0){
+    Serial.print("M>");
+    Serial.println(wire_input);
 
-    cmd = Serial.parseInt();
-    Serial.print(motor_position);
-    Serial.print(" to move ");
-    Serial.print(cmd);
-    Serial.print(" of ");
-    Serial.print(motor_stop_max);
+    command_parser(wire_input);  
+    wire_input = "";
+  }
 
-    motor_move(cmd);
-
-    // lf (10)
-    cmd = Serial.read(); //LF 코드 읽기
-    */
+  // 시리얼 통신 명령 입력부
+  if(Serial.available()>0){
+    String serial_input = Serial.readStringUntil('\n'); //엔터까지 입력받기
+    Serial.println("> INPUT : " + serial_input);
+    command_parser(serial_input);  
   }
   
 }
+
+
+/**
+ * I2C를 통하여 데이터 값을 전달 받음
+*/
+
+int received_pos = 0;
+
+/**
+ * I2C를 통하여 데이터 값을 전달 받음
+*/
+void receivedEvent(int howMany) {
+  while (1 < Wire.available()) { // loop through all but the last
+    char c = Wire.read(); // receive byte as a character
+    wire_input += c;
+    Serial.print(c);         // print the character
+  }
+  
+  char c = Wire.read(); // receive byte as a character
+  wire_input += c;
+  Serial.println(c); 
+
+  //int x = Wire.read();    // receive byte as an integer
+  //Serial.println(x);         // print the integer
+}
+
+void requestEvent() {
+  Wire.write("hello "); // respond with message of 6 bytes
+  // as expected by master
+}
+/*
+void receivedEvent(int howmany) {
+  int x;
+  x = Wire.read();
+  Serial.print(x);
+  
+  // 숫자값 계산 확인
+  // 48->0, 57->9
+  if( x >= 48 && x <= 57) {
+    received_pos = received_pos * 10 + (x - 48);
+    Serial.print("position = ");
+    Serial.println(received_pos);
+  }
+
+  // m(109) 값 전달 받은 경우 이동
+  if(x == 109) {
+    //move = 1;
+    motor_move(received_pos);
+    received_pos = 0;
+  }
+
+}
+*/
+
+/*
+ * 통신 명령어 처리
+*/
+
+// 명령어 분석
+void command_parser(String input) {
+
+
+  //문자의 첫번째 위치부터 다음 토큰까지 읽어낸다
+  int space_idx = input.indexOf("="); 
+
+  //첫번째 인자의 경우, 공백을 만나지못하면 인자 딱 하나만 입력한 경우이므로 처음부터 끝까지 읽고,
+  //공백을 만나면 그 공백 전까지 짤라서 읽어내면 됨. (인자가 2개 이상인 경우)
+  String cmd = space_idx == -1 ? input.substring(0, input.length()) : input.substring(0, space_idx);
+
+  if(space_idx == -1) {
+    cmd = input.substring(0, input.length());
+    command(cmd, ""); // 명령어 분석
+  } else {
+    command(cmd, input.substring(space_idx+1, input.length()) );
+  }
+}
+
+
+int command(String cmd, String str) {
+  int module_idx = 0;
+
+  Serial.println("command = " + cmd);
+
+  // command prefix check
+  // 커멘드에 번호가 있는지?
+  //문자의 첫번째 위치부터 다음 토큰까지 읽어낸다
+  int space_idx = cmd.indexOf(":");
+  if(space_idx!= -1) {
+    module_idx = cmd.substring(0, space_idx).toInt();;
+    Serial.print("module = ");
+    Serial.print(module_idx);
+
+    cmd = cmd.substring(space_idx+1, cmd.length());
+    Serial.print(", command = ");
+    Serial.println(cmd);
+
+    Wire.write('=');
+
+    Wire.beginTransmission(module_idx);
+    for(int n=0; n<str.length(); n++) {
+      Wire.write(str.charAt(n));
+    }
+
+    for(int n=0; n<cmd.length(); n++) {
+      Wire.write(cmd.charAt(n));
+    }  
+    Wire.endTransmission();
+    
+    return 0; //함수 중단
+  } 
+  
+
+  
+  // local 커멘드
+  if (cmd == "version") {
+    int num = str.toInt();
+
+    Serial.print("version = ");
+    Serial.println(version);
+  }
+
+  if (cmd == "step") {
+    int num = str.toInt();
+    received_pos = num;
+    Serial.print("step = ");
+    Serial.println(num);
+  }
+
+  if (cmd == "move") {
+    int num = str.toInt();
+    Serial.println("step move");
+    
+    motor_move(received_pos);
+    received_pos = 0; // 다시 초기화
+  }
+  
+
+}
+
+
 

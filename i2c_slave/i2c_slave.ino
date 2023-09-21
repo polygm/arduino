@@ -158,6 +158,11 @@ void setup() {
     //Serial.println(slave_num);
   }
 
+  // 강제지정
+  // 1:servo1=0
+  // 1:servo1=180
+  slave_num = 1; 
+
   if(slave_num>0 && slave_num <=127) {
     Wire.begin(slave_num);  
     Wire.onReceive(receiveEvent); // register event

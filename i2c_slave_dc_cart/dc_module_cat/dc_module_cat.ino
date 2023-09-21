@@ -124,7 +124,7 @@ void setup() {
 
   // 초기화8: i2c 통신 설정, (A4, A5)
   // 127개 통신
-  Wire.begin(5); // 각각 모듈 번호 지정
+  Wire.begin(20); // 각각 모듈 번호 지정
   Wire.onReceive(receiveEvent);
  
 
@@ -142,7 +142,7 @@ void setup() {
   delay(20);
 
   // 초기화7 : 모터센서 초기화
-  motor_dc1_init();
+  //motor_dc1_init();
 
 
   /*
@@ -198,7 +198,7 @@ void motor_dc1_init() {
 
   motor1_init = 1;
 
-  m1_speed = 120; // 최소 속도
+  m1_speed = 80; // 최소 속도
   m1_manual = 1;
 
   Serial.println("** motor init **");

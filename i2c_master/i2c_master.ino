@@ -445,7 +445,7 @@ int command(String cmd, String str) {
     if(str.length()>0) {
       // 구분기호 전송
       Wire.write('=');
-      //Serial.println("");
+      Serial.print("=");
 
       // 파라미터 값을 추가 전송합니다.
       //Serial.print("Wrie value = ");
